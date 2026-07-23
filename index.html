@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>จัดห้องคอนโด 3 มิติ — ปรับผนัง เฟอร์นิเจอร์ และมุมมอง</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --paper:#F7F4EE; --card:#FFFDF8; --ink:#38342E; --muted:#8C8275;
+         --line:#E2DACC; --accent:#2E4864; --danger:#A4553F; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden}
+  body{background:var(--paper);color:var(--ink);
+       font-family:'Noto Sans Thai',system-ui,sans-serif;font-weight:300;
+       display:flex;flex-direction:column;-webkit-user-select:none;user-select:none}
+  header{padding:13px 20px 9px;border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:17px;font-weight:500}
+  header p{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
+  main{flex:1;display:flex;min-height:0;flex-wrap:wrap}
+  #stage{position:relative;flex:1 1 520px;min-width:320px;display:flex;
+         align-items:center;justify-content:center;padding:8px;overflow:hidden;touch-action:none}
+  svg{width:100%;height:100%;max-height:100%;display:block;cursor:grab}
+  svg.grabbing{cursor:grabbing}
+  aside{flex:0 0 288px;height:100%;border-left:1px solid var(--line);background:var(--card);
+        padding:16px 16px 40px;overflow-y:scroll;scrollbar-gutter:stable;font-size:13px;
+        overscroll-behavior:contain}
+
+  .orbit{position:fixed;bottom:16px;left:16px;z-index:60;display:flex;flex-direction:column;gap:8px;
+         background:rgba(255,253,248,.92);border:1px solid var(--line);border-radius:8px;
+         padding:9px;backdrop-filter:blur(4px);box-shadow:0 1px 6px rgba(56,52,46,.07)}
+  .pad{display:grid;grid-template-columns:repeat(3,30px);grid-template-rows:repeat(3,30px);gap:3px}
+  .orbit button{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:4px;
+                font-size:12px;line-height:1;cursor:pointer;padding:0;
+                display:flex;align-items:center;justify-content:center;font-family:inherit}
+  .orbit button:hover{border-color:var(--accent);color:var(--accent)}
+  .orbit button:active{background:#F0EBE0}
+  .pad button.up{grid-area:1/2} .pad button.left{grid-area:2/1}
+  .pad button.home{grid-area:2/2;font-size:11px} .pad button.right{grid-area:2/3}
+  .pad button.down{grid-area:3/2}
+  .zoomrow{display:grid;grid-template-columns:repeat(3,30px);gap:3px}
+  .zoomrow button{height:26px;font-size:14px;font-weight:500}
+  .zoomrow button.fit{font-size:10px}
+  .readout{font-size:10px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+
+  .vpan{position:absolute;right:4px;top:0;bottom:0;width:36px;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+        pointer-events:none}
+  .vpan span{font-size:11px;color:var(--muted)}
+  .vpan input[type=range]{pointer-events:auto;transform:rotate(-90deg);
+        width:min(300px,50vh);margin:0;accent-color:var(--accent);cursor:pointer}
+  .vpan .track{display:flex;align-items:center;justify-content:center;
+        flex:0 0 auto;height:min(300px,50vh);width:36px}
+
+  .roomcard{position:absolute;top:14px;left:14px;z-index:55;width:206px;
+        background:rgba(255,253,248,.95);border:1px solid var(--line);border-radius:8px;
+        padding:11px 12px 12px;backdrop-filter:blur(4px);
+        box-shadow:0 1px 8px rgba(56,52,46,.09);display:none}
+  .roomcard h3{margin:0 0 2px;font-size:13.5px;font-weight:500;padding-right:16px}
+  .roomcard .sub{font-size:11px;color:var(--muted);line-height:1.5}
+  .roomcard .x{position:absolute;top:5px;right:7px;border:none;background:none;color:var(--muted);
+        font-size:13px;cursor:pointer;padding:2px 4px;line-height:1}
+  .roomcard .x:hover{color:var(--ink)}
+  .roomcard .note{font-size:10.5px;color:var(--muted);line-height:1.55;margin:7px 0 0}
+
+  .grp{margin-bottom:18px}
+  .grp h2{margin:0 0 8px;font-size:11.5px;font-weight:700;letter-spacing:.09em;
+          text-transform:uppercase;color:var(--muted)}
+  label.rng{display:block;margin-bottom:9px;color:var(--muted);font-size:12px}
+  label.rng span{float:right;color:var(--ink);font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--accent);margin-top:4px}
+  .btns{display:flex;flex-wrap:wrap;gap:6px}
+  button,select{font-family:inherit;font-size:12px;font-weight:500;padding:7px 10px;
+         border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:3px;cursor:pointer}
+  aside button:hover{border-color:var(--accent);color:var(--accent)}
+  aside button.danger:hover{border-color:var(--danger);color:var(--danger)}
+  button:disabled{opacity:.4;cursor:default;border-color:var(--line);color:var(--muted)}
+  .sel{background:#F3EFE6;border:1px solid var(--line);border-radius:4px;padding:10px 11px;
+       font-size:12.5px;line-height:1.6}
+  .sel .dim{color:var(--muted);font-size:11.5px}
+  .dims{display:flex;gap:6px;margin-top:8px}
+  .dims div{flex:1}
+  .dims small{display:block;color:var(--muted);font-size:10.5px;margin-bottom:3px}
+  .dims input{width:100%;font-family:inherit;font-size:12.5px;padding:6px 7px;
+              border:1px solid var(--line);border-radius:3px;background:#fff;
+              font-variant-numeric:tabular-nums;-webkit-user-select:text;user-select:text}
+  textarea{width:100%;height:76px;font-family:ui-monospace,monospace;font-size:10.5px;
+           border:1px solid var(--line);border-radius:3px;padding:6px;background:#fff;color:var(--muted);
+           -webkit-user-select:text;user-select:text}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.75}
+  .swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:1px}
+  #list div:hover,#roomList div:hover{color:var(--accent)}
+  .tin{flex:1;min-width:110px;font-family:inherit;font-size:12.5px;padding:7px 9px;
+       border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);
+       -webkit-user-select:text;user-select:text}
+  .srow{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--line)}
+  .srow:first-child{border-top:none}
+  .srow .info{flex:1;cursor:pointer;line-height:1.35;font-size:12.5px}
+  .srow .info b{font-weight:500}
+  .srow .info span{display:block;font-size:10.5px;color:var(--muted)}
+  .srow .info:hover b{color:var(--accent)}
+  .srow .kill{flex:0 0 auto;width:24px;height:24px;padding:0;font-size:11px;line-height:1;
+       border:1px solid var(--line);background:#fff;border-radius:3px;cursor:pointer;color:var(--muted);
+       display:flex;align-items:center;justify-content:center}
+  .srow .kill:hover{border-color:var(--danger);color:var(--danger)}
+  .empty{font-size:11.5px;color:var(--muted);padding:4px 0}
+  .frow{display:flex;align-items:center;gap:7px;padding:3px 0}
+  .frow .eye{flex:0 0 auto;width:24px;height:22px;padding:0;font-size:11px;line-height:1;
+             border:1px solid var(--line);background:#fff;border-radius:3px;cursor:pointer;
+             display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .frow .eye:hover{border-color:var(--accent)}
+  .frow .nm{flex:1;cursor:pointer;line-height:1.4}
+  .frow.off .nm{opacity:.42;text-decoration:line-through}
+  .frow.off .eye{color:var(--muted);background:#F2EEE5}
+  /* ================= มือถือ / จอแคบ ================= */
+  @media(max-width:860px){
+    html,body{height:auto;overflow:visible;-webkit-text-size-adjust:100%}
+    body{min-height:100%}
+    header{padding:11px 14px 8px}
+    header h1{font-size:16px}
+    header p{font-size:11.5px;line-height:1.5}
+    main{flex-direction:column;min-height:0;flex-wrap:nowrap}
+    #stage{flex:none;width:100%;height:44vh;min-width:0;padding:4px;
+           position:sticky;top:0;z-index:40;background:var(--paper);
+           border-bottom:1px solid var(--line)}
+    aside{flex:none;width:100%;height:auto;overflow:visible;border-left:none;
+          scrollbar-gutter:auto;padding:14px 14px 70px}
+    .orbit{position:absolute;bottom:6px;left:6px;padding:6px;gap:5px}
+    .pad{grid-template-columns:repeat(3,27px);grid-template-rows:repeat(3,27px);gap:2px}
+    .zoomrow{grid-template-columns:repeat(3,27px);gap:2px}
+    .zoomrow button{height:23px}
+    .readout{font-size:9px}
+    .vpan{width:28px;right:1px}
+    .vpan input[type=range]{width:min(190px,24vh)}
+    .vpan .track{height:min(190px,24vh);width:28px}
+    .roomcard{width:184px;top:6px;left:6px;padding:9px 10px 10px}
+    .roomcard h3{font-size:12.5px}
+    .roomcard .note{display:none}
+    aside button,aside select{padding:10px 12px;font-size:12.5px}
+    .dims input{padding:9px 8px;font-size:16px}
+    .roomcard .dims input{font-size:15px;padding:7px}
+    .frow{padding:6px 0}
+    .frow .eye{width:30px;height:28px}
+    textarea{height:90px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>จัดห้องคอนโด 3 มิติ</h1>
+  <p>คลิกป้ายชื่อห้อง = แก้ขนาดห้อง · คลิกเฟอร์นิเจอร์ = แก้ขนาด/ย้าย · ลากพื้นที่ว่าง = หมุนกล้อง · สกรอลล์ = ซูม</p>
+</header>
+
+<main>
+  <div id="stage">
+    <svg id="scene" viewBox="0 0 760 560" xmlns="http://www.w3.org/2000/svg"></svg>
+
+    <div class="roomcard" id="roomCard">
+      <button class="x" id="roomClose" title="ปิด">✕</button>
+      <h3 id="rcName">ห้อง</h3>
+      <div class="sub" id="rcSub">—</div>
+      <div class="dims">
+        <div><small>กว้าง (ซม.)</small><input type="number" id="cW" min="60" step="1"></div>
+        <div><small>ยาว (ซม.)</small><input type="number" id="cD" min="60" step="1"></div>
+      </div>
+      <p class="note">แก้ตัวเลขแล้วผนังกั้นจะเลื่อน ห้องที่ติดกันปรับตาม</p>
+    </div>
+
+    <div class="orbit">
+      <div class="pad">
+        <button class="up" data-act="up">▲</button>
+        <button class="left" data-act="left">◀</button>
+        <button class="home" data-act="home">⌂</button>
+        <button class="right" data-act="right">▶</button>
+        <button class="down" data-act="down">▼</button>
+      </div>
+      <div class="zoomrow">
+        <button data-act="zout">−</button>
+        <button class="fit" data-act="fit">พอดี</button>
+        <button data-act="zin">+</button>
+      </div>
+      <div class="readout" id="readout">45° / 35°</div>
+    </div>
+
+    <div class="vpan">
+      <span>▲</span>
+      <div class="track"><input type="range" id="vpan" min="-340" max="340" step="1" value="0"></div>
+      <span>▼</span>
+    </div>
+  </div>
+
+  <aside>
+    <div class="grp">
+      <h2>ห้องที่เลือก</h2>
+      <div class="sel" id="roomBox">คลิกที่ป้ายชื่อห้องในภาพ</div>
+      <div id="roomDims" style="display:none">
+        <div class="dims">
+          <div><small>กว้าง (ซม.)</small><input type="number" id="rW" min="60" step="1"></div>
+          <div><small>ยาว (ซม.)</small><input type="number" id="rD" min="60" step="1"></div>
+        </div>
+        <p class="hint" style="margin:7px 0 0">แก้ค่าแล้วผนังกั้นจะเลื่อน ห้องที่ติดกันจะกว้าง/แคบลงตามกัน</p>
+      </div>
+      <div id="roomList" class="hint" style="margin-top:9px"></div>
+    </div>
+
+    <div class="grp">
+      <h2>ขนาดรวมทั้งยูนิต</h2>
+      <div class="dims" style="margin-top:0">
+        <div><small>กว้าง (ซม.)</small><input type="number" id="uW" min="250" max="1200" step="1"></div>
+        <div><small>ยาว (ซม.)</small><input type="number" id="uD" min="250" max="1200" step="1"></div>
+      </div>
+      <p class="hint" style="margin:7px 0 0">ส่วนมีผนัง <b id="area">32.4</b> ตร.ม. · รวมระเบียงยาว <b id="tot">760</b> ซม.</p>
+    </div>
+
+    <div class="grp">
+      <h2>ชิ้นที่เลือก</h2>
+      <div class="sel" id="selBox">ยังไม่ได้เลือก — คลิกที่เฟอร์นิเจอร์ในภาพ</div>
+      <div id="dimWrap" style="display:none">
+        <div class="dims">
+          <div><small>กว้าง (ซม.)</small><input type="number" id="dW" min="2" max="600" step="1"></div>
+          <div><small>ลึก (ซม.)</small><input type="number" id="dD" min="2" max="600" step="1"></div>
+          <div><small>สูง (ซม.)</small><input type="number" id="dH" min="1" max="260" step="1"></div>
+        </div>
+      </div>
+      <div class="btns" style="margin-top:8px">
+        <button id="rotL" disabled>↺ 90°</button>
+        <button id="rotR" disabled>↻ 90°</button>
+        <button id="del" class="danger" disabled>ลบชิ้นนี้</button>
+      </div>
+      <p class="hint" style="margin:8px 0 0">ลูกศร = ขยับ 5 ซม. · Shift+ลูกศร = 1 ซม. · R = หมุน · Delete = ลบ</p>
+    </div>
+
+    <div class="grp">
+      <h2>เพิ่มเฟอร์นิเจอร์</h2>
+      <div class="btns">
+        <select id="addSel" style="flex:1;min-width:150px"></select>
+        <button id="addBtn">เพิ่ม</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>มุมมอง</h2>
+      <label class="rng">หมุนรอบห้อง <span id="vYaw">45°</span>
+        <input type="range" id="yaw" min="0" max="360" value="45" step="1"></label>
+      <label class="rng">มุมกด <span id="vPitch">35°</span>
+        <input type="range" id="pitch" min="10" max="80" value="35" step="1"></label>
+      <label class="rng">ซูม <span id="vZoom">58</span>
+        <input type="range" id="zoom" min="20" max="140" value="58" step="1"></label>
+      <div class="btns">
+        <button data-yaw="45">มุม 1</button><button data-yaw="135">มุม 2</button>
+        <button data-yaw="225">มุม 3</button><button data-yaw="315">มุม 4</button>
+        <button id="topview">มองจากบน</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>แสดงผล</h2>
+      <div class="btns">
+        <button id="tWalls">ผนัง: เปิด</button>
+        <button id="tGrid">ตาราง: เปิด</button>
+        <button id="tLabel">ป้ายห้อง: เปิด</button>
+        <button id="reset">รีเซ็ตทั้งหมด</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>บันทึกแบบ</h2>
+      <div class="btns" style="margin-bottom:8px">
+        <input type="text" id="saveName" class="tin" placeholder="ตั้งชื่อการจัด เช่น แบบ A">
+        <button id="saveBtn">บันทึก</button>
+      </div>
+      <div id="saveList"></div>
+      <div class="btns" style="margin-top:10px">
+        <button id="refreshBtn">รีเฟรช</button>
+        <button id="dlBtn">ดาวน์โหลดไฟล์</button>
+        <button id="upBtn">เปิดจากไฟล์</button>
+        <input type="file" id="upFile" accept=".json,application/json" style="display:none">
+      </div>
+      <p class="hint" id="storeNote" style="margin:8px 0 0"></p>
+    </div>
+
+    <div class="grp">
+      <h2>รายการในห้อง</h2>
+      <div class="btns" style="margin-bottom:8px">
+        <button id="showAll">แสดงทั้งหมด</button>
+        <button id="hideAll">ซ่อนทั้งหมด</button>
+      </div>
+      <div id="list" class="hint"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+(function(){
+"use strict";
+var NS='http://www.w3.org/2000/svg';
+var svg=document.getElementById('scene');
+var WALL='#F0EAE0';
+
+/* ============ ผังห้องแบบพารามิเตอร์ ============ */
+var L0={W:5.40,D:6.00,H:2.55,t:0.10,xs:1.80,yBK:2.10,yBed:3.60,tW:1.80,tD:1.60};
+var L=Object.assign({},L0);
+function cl(v,a,b){return Math.max(a,Math.min(b,v));}
+function totalD(){return L.D+L.tD;}
+function clampLayout(){
+  L.W=cl(L.W,2.5,12); L.D=cl(L.D,2.5,12);
+  L.xs=cl(L.xs,0.90,L.W-1.20);
+  L.yBK=cl(L.yBK,0.90,L.D-1.20);
+  L.yBed=cl(L.yBed,1.20,L.D-1.20);
+  L.tW=cl(L.tW,0.60,L.W);
+  L.tD=cl(L.tD,0.40,4.00);
+}
+
+var ROOMS=[
+ {id:'bath',name:'ห้องน้ำ',
+  rect:function(){return{x:0,y:0,w:L.xs,d:L.yBK};},
+  setW:function(v){L.xs=v;}, setD:function(v){L.yBK=v;}},
+ {id:'kitchen',name:'ครัว',
+  rect:function(){return{x:0,y:L.yBK,w:L.xs,d:L.D-L.yBK};},
+  setW:function(v){L.xs=v;}, setD:function(v){L.yBK=L.D-v;}},
+ {id:'living',name:'นั่งเล่น + ทานอาหาร',
+  rect:function(){return{x:L.xs,y:0,w:L.W-L.xs,d:L.yBed};},
+  setW:function(v){L.xs=L.W-v;}, setD:function(v){L.yBed=v;}},
+ {id:'bedroom',name:'ห้องนอน',
+  rect:function(){return{x:L.xs,y:L.yBed,w:L.W-L.xs,d:L.D-L.yBed};},
+  setW:function(v){L.xs=L.W-v;}, setD:function(v){L.yBed=L.D-v;}},
+ {id:'terrace',name:'ระเบียง',
+  rect:function(){return{x:0,y:L.D,w:L.tW,d:L.tD};},
+  setW:function(v){L.tW=v;}, setD:function(v){L.tD=v;}}
+];
+function roomById(id){for(var i=0;i<ROOMS.length;i++) if(ROOMS[i].id===id) return ROOMS[i];return null;}
+
+function floors(){
+  return [{x:L.xs,y:0,w:L.W-L.xs,d:L.D,c:'#C6A277'},
+          {x:0,y:0,w:L.xs,d:L.D,c:'#F1EFE9'},
+          {x:0,y:L.D,w:L.tW,d:L.tD,c:'#E2DFD6'}];
+}
+function walls(){
+  var t=L.t,a=[];
+  a.push({x:0,y:0,w:L.W,d:t,h:L.H,c:WALL});                    /* ผนังเหนือ */
+  a.push({x:0,y:0,w:t,d:L.D,h:L.H,c:WALL});                    /* ผนังตะวันตก */
+  a.push({x:L.W-t,y:0,w:t,d:L.D,h:L.H,c:WALL});                /* ผนังตะวันออก */
+  /* ผนังใต้ เว้นช่องประตูออกระเบียง */
+  var gw=Math.min(0.90,Math.max(0.4,L.tW-0.6)), g0=Math.max(0.15,(L.tW-gw)/2);
+  if(g0>0.05) a.push({x:0,y:L.D-t,w:g0,d:t,h:L.H,c:WALL});
+  if(L.W>g0+gw) a.push({x:g0+gw,y:L.D-t,w:L.W-(g0+gw),d:t,h:L.H,c:WALL});
+  /* ผนังกั้นห้องน้ำ | ครัว */
+  a.push({x:0,y:L.yBK-t/2,w:L.xs,d:t,h:L.H,c:WALL});
+  /* ผนังกั้นแนวตั้ง โซนบริการ | โซนอยู่อาศัย พร้อมช่องประตู 2 จุด */
+  var gaps=[], bd=Math.min(0.80,L.yBK*0.45), bc=L.yBK*0.55;
+  gaps.push([bc-bd/2,bc+bd/2]);
+  var kh=L.D-L.yBK, kd=Math.min(0.80,kh*0.35), kc=L.yBK+kh*0.30;
+  gaps.push([kc-kd/2,kc+kd/2]);
+  var y=0;
+  gaps.forEach(function(g){ if(g[0]>y+0.02) a.push({x:L.xs-t/2,y:y,w:t,d:g[0]-y,h:L.H,c:WALL}); y=g[1]; });
+  if(L.D>y+0.02) a.push({x:L.xs-t/2,y:y,w:t,d:L.D-y,h:L.H,c:WALL});
+  var dw=Math.min(0.90,(L.W-L.xs)*0.4);
+  a.push({x:L.xs+(L.W-L.xs)*0.45,y:0.02,w:dw,d:0.07,h:Math.min(2.05,L.H-0.2),c:'#B08A5E'});
+  return a;
+}
+function glass(){                                             /* ผนังกระจกกั้นห้องนอน */
+  var t=L.t, x0=L.xs+0.80, x1=L.W-0.06, y=L.yBed-t/2, hh=Math.min(2.40,L.H-0.10);
+  if(x1<=x0+0.3) return [];
+  var a=[{x:x0,y:y+0.02,w:x1-x0,d:0.06,h:hh-0.05,c:'#5C6E7A',o:0.30}], n=3, st=(x1-x0)/n;
+  for(var i=0;i<=n;i++) a.push({x:Math.min(x1-0.07,x0+i*st),y:y,w:0.07,d:t,h:hh,c:'#2A2A2A'});
+  a.push({x:x0,y:y,z:hh,w:x1-x0,d:t,h:0.12,c:'#2A2A2A'});
+  return a;
+}
+function builtin(){
+  var a=[], ky0=L.yBK+0.25, ky1=L.D-0.35, kd=ky1-ky0;
+  if(kd>0.35 && L.xs>0.75){
+    a.push({x:L.t+0.02,y:ky0,w:0.58,d:kd,h:0.84,c:'#B58C60'});
+    a.push({x:L.t,y:ky0-0.02,z:0.84,w:0.63,d:kd+0.04,h:0.05,c:'#F0EDE5'});
+    a.push({x:L.t+0.02,y:ky0+kd*0.12,z:1.45,w:0.34,d:kd*0.45,h:0.60,c:'#F5F2EB'});
+  }
+  if(L.yBK>0.9 && L.xs>0.7){
+    a.push({x:L.t+0.02,y:0.30,w:0.50,d:Math.min(0.75,L.yBK-0.55),h:0.80,c:'#EDE9E0'});
+    a.push({x:Math.min(L.xs-0.50,0.95),y:0.28,w:0.40,d:Math.min(0.58,L.yBK-0.50),h:0.72,c:'#FCFCFA'});
+  }
+  /* ราวกันตกระเบียง 3 ด้าน */
+  a.push({x:0,y:L.D,w:0.05,d:L.tD,h:1.05,c:'#3B3B3B',o:0.75});
+  a.push({x:L.tW-0.05,y:L.D,w:0.05,d:L.tD,h:1.05,c:'#3B3B3B',o:0.75});
+  a.push({x:0,y:L.D+L.tD-0.05,w:L.tW,d:0.05,h:1.05,c:'#3B3B3B',o:0.75});
+  return a;
+}
+
+/* ============ เฟอร์นิเจอร์ ============ */
+var CATALOG=[
+ {id:'bed',name:'เตียง 6 ฟุต',x:2.00,y:3.66,rot:0,w:1.83,d:2.10,c:'#8A6A48',
+  parts:[{x:0,y:0,z:0,w:1.83,d:0.10,h:0.92,c:'#7B5B3D'},
+         {x:0,y:0.10,z:0,w:1.83,d:2.00,h:0.30,c:'#8A6A48'},
+         {x:0,y:0.10,z:0.30,w:1.83,d:2.00,h:0.26,c:'#FBF8F2'},
+         {x:0.10,y:0.20,z:0.56,w:0.72,d:0.42,h:0.14,c:'#FFFFFF'},
+         {x:1.01,y:0.20,z:0.56,w:0.72,d:0.42,h:0.14,c:'#FFFFFF'},
+         {x:0,y:1.05,z:0.56,w:1.83,d:1.05,h:0.07,c:'#DAD0BD'}]},
+ {id:'sofa',name:'โซฟาผ้าสีน้ำเงิน',x:4.40,y:0.30,rot:90,w:1.75,d:0.95,c:'#2E4864',
+  parts:[{x:0,y:0,z:0,w:1.75,d:0.95,h:0.40,c:'#2E4864'},
+         {x:0,y:0,z:0.40,w:1.75,d:0.28,h:0.42,c:'#3A5B7C'},
+         {x:0.08,y:0.34,z:0.40,w:0.78,d:0.55,h:0.19,c:'#41668C'},
+         {x:0.90,y:0.34,z:0.40,w:0.78,d:0.55,h:0.15,c:'#3B5D80'}]},
+ {id:'table',name:'โต๊ะกินข้าว',x:2.95,y:2.45,rot:0,w:0.90,d:0.90,c:'#FAF7F1',
+  parts:[{x:0,y:0,z:0.71,w:0.90,d:0.90,h:0.05,c:'#FAF7F1'},
+         {x:0.06,y:0.06,z:0,w:0.06,d:0.06,h:0.71,c:'#D6C9B2'},
+         {x:0.78,y:0.06,z:0,w:0.06,d:0.06,h:0.71,c:'#D6C9B2'},
+         {x:0.06,y:0.78,z:0,w:0.06,d:0.06,h:0.71,c:'#D6C9B2'},
+         {x:0.78,y:0.78,z:0,w:0.06,d:0.06,h:0.71,c:'#D6C9B2'}]},
+ {id:'chair1',name:'เก้าอี้ 1',x:2.42,y:2.63,rot:90,w:0.44,d:0.46,c:'#E4DAC7',
+  parts:[{x:0,y:0.04,z:0,w:0.44,d:0.42,h:0.44,c:'#E4DAC7'},
+         {x:0,y:0,z:0.44,w:0.44,d:0.06,h:0.45,c:'#DCD1BB'}]},
+ {id:'chair2',name:'เก้าอี้ 2',x:4.42,y:3.09,rot:270,w:0.44,d:0.46,c:'#E4DAC7',
+  parts:[{x:0,y:0.04,z:0,w:0.44,d:0.42,h:0.44,c:'#E4DAC7'},
+         {x:0,y:0,z:0.44,w:0.44,d:0.06,h:0.45,c:'#DCD1BB'}]},
+ {id:'shoe',name:'ตู้วางรองเท้า',x:4.75,y:0.14,rot:0,w:0.50,d:0.17,c:'#E9E1D2',
+  parts:[{x:0,y:0,z:0,w:0.50,d:0.17,h:1.12,c:'#E9E1D2'},
+         {x:0.02,y:0,z:0.36,w:0.46,d:0.02,h:0.02,c:'#CFC3AE'},
+         {x:0.02,y:0,z:0.74,w:0.46,d:0.02,h:0.02,c:'#CFC3AE'}]},
+ {id:'drawer',name:'ลิ้นชัก 3 ชั้น',x:4.00,y:3.72,rot:0,w:0.45,d:0.45,c:'#DDCFB7',
+  parts:[{x:0,y:0,z:0,w:0.45,d:0.45,h:0.81,c:'#DDCFB7'},
+         {x:0.03,y:0,z:0.26,w:0.39,d:0.02,h:0.02,c:'#C4B491'},
+         {x:0.03,y:0,z:0.53,w:0.39,d:0.02,h:0.02,c:'#C4B491'}]},
+ {id:'wardrobe',name:'ตู้เสื้อผ้า',x:4.60,y:4.20,rot:90,w:1.70,d:0.75,c:'#EDE7DB',
+  parts:[{x:0,y:0,z:0,w:1.70,d:0.75,h:2.20,c:'#EDE7DB'},
+         {x:0.84,y:0,z:0,w:0.02,d:0.02,h:2.20,c:'#CFC6B6'}]},
+ {id:'tvcon',name:'ตู้วางทีวี',x:1.90,y:0.60,rot:0,w:0.40,d:1.40,c:'#9A7B57',
+  parts:[{x:0,y:0,z:0,w:0.40,d:1.40,h:0.42,c:'#9A7B57'}]},
+ {id:'tv',name:'ทีวีติดผนัง',x:1.86,y:0.95,rot:0,w:0.06,d:0.95,c:'#23272B',fixedZ:0.95,
+  parts:[{x:0,y:0,z:0.95,w:0.06,d:0.95,h:0.55,c:'#23272B'}]},
+ {id:'mirror',name:'กระจกห้องนอน',x:4.52,y:3.70,rot:0,w:0.05,d:0.55,c:'#CFE0E8',fixedZ:0.95,
+  parts:[{x:0,y:0,z:0.95,w:0.05,d:0.55,h:0.95,c:'#CFE0E8'}]},
+ {id:'side',name:'โต๊ะข้างโซฟา',x:3.60,y:0.50,rot:0,w:0.42,d:0.42,c:'#D8CBB3',
+  parts:[{x:0,y:0,z:0,w:0.42,d:0.42,h:0.42,c:'#D8CBB3'}]},
+ {id:'rug',name:'พรม',x:3.45,y:0.35,rot:0,w:1.35,d:1.75,c:'#EDE6D8',
+  parts:[{x:0,y:0,z:0,w:1.35,d:1.75,h:0.015,c:'#EDE6D8'}]},
+ {id:'micro',name:'ไมโครเวฟ',x:0.22,y:2.55,rot:0,w:0.44,d:0.34,c:'#EFEFED',fixedZ:0.89,
+  parts:[{x:0,y:0,z:0.89,w:0.44,d:0.34,h:0.27,c:'#EFEFED'}]},
+ {id:'washer',name:'เครื่องซักผ้า',x:0.25,y:6.25,rot:0,w:0.60,d:0.60,c:'#F2F2F0',
+  parts:[{x:0,y:0,z:0,w:0.60,d:0.60,h:0.85,c:'#F2F2F0'}]},
+ {id:'fridge',name:'ตู้เย็น',x:0.80,y:2.30,rot:0,w:0.60,d:0.65,c:'#E8E8E6',extra:true,
+  parts:[{x:0,y:0,z:0,w:0.60,d:0.65,h:1.70,c:'#E8E8E6'},
+         {x:0,y:0,z:0.62,w:0.60,d:0.02,h:0.02,c:'#C9C9C6'}]},
+ {id:'shelf',name:'ชั้นวางของ',x:2.00,y:2.20,rot:0,w:0.80,d:0.35,c:'#D9C7A9',extra:true,
+  parts:[{x:0,y:0,z:0,w:0.80,d:0.35,h:1.20,c:'#D9C7A9'},
+         {x:0.02,y:0,z:0.40,w:0.76,d:0.02,h:0.02,c:'#BFA97F'},
+         {x:0.02,y:0,z:0.80,w:0.76,d:0.02,h:0.02,c:'#BFA97F'}]},
+ {id:'desk',name:'โต๊ะทำงาน',x:2.10,y:1.10,rot:0,w:1.10,d:0.55,c:'#E3D6BC',extra:true,
+  parts:[{x:0,y:0,z:0.70,w:1.10,d:0.55,h:0.04,c:'#E3D6BC'},
+         {x:0.03,y:0.03,z:0,w:0.05,d:0.05,h:0.70,c:'#CDBB99'},
+         {x:1.02,y:0.03,z:0,w:0.05,d:0.05,h:0.70,c:'#CDBB99'},
+         {x:0.03,y:0.47,z:0,w:0.05,d:0.05,h:0.70,c:'#CDBB99'},
+         {x:1.02,y:0.47,z:0,w:0.05,d:0.05,h:0.70,c:'#CDBB99'}]},
+ {id:'box',name:'กล่องเปล่า (ปรับขนาดเอง)',x:2.60,y:1.60,rot:0,w:0.60,d:0.60,c:'#DCD4C4',extra:true,
+  parts:[{x:0,y:0,z:0,w:0.60,d:0.60,h:0.60,c:'#DCD4C4'}]}
+];
+function prep(src){
+  var it=JSON.parse(JSON.stringify(src));
+  it.parts0=JSON.parse(JSON.stringify(it.parts)); it.w0=it.w; it.d0=it.d;
+  var top=0,tall=0;
+  it.parts.forEach(function(p){top=Math.max(top,(p.z||0)+p.h);tall=Math.max(tall,p.h);});
+  it.h0=(it.fixedZ!==undefined)?tall:top; it.h=it.h0; return it;
+}
+function rescale(it){
+  var fx=it.w/it.w0, fy=it.d/it.d0, fz=it.h/it.h0;
+  it.parts=it.parts0.map(function(p){
+    return {x:p.x*fx,y:p.y*fy,z:(it.fixedZ!==undefined?(p.z||0):(p.z||0)*fz),
+            w:p.w*fx,d:p.d*fy,h:p.h*fz,c:p.c};});
+}
+
+var items=CATALOG.filter(function(c){return !c.extra;}).map(prep);
+var view={yaw:45,pitch:35,S:58,cx:0,cy:0,ox:0,oy:0,walls:true,grid:true,labels:true};
+var sel=null, selRoom=null, drag=null, orbit=null, pan=null, uid=0;
+
+/* ============ projection ============ */
+function rawProj(x,y,z){
+  var t=view.yaw*Math.PI/180,p=view.pitch*Math.PI/180;
+  var ax=x-L.W/2, ay=y-totalD()/2;
+  var u= ax*Math.cos(t)+ay*Math.sin(t);
+  var v=-ax*Math.sin(t)+ay*Math.cos(t);
+  return {sx:380+u*view.S, sy:300+v*Math.sin(p)*view.S - z*Math.cos(p)*view.S};
+}
+function proj(x,y,z){var q=rawProj(x,y,z);return {sx:q.sx+view.cx+view.ox, sy:q.sy+view.cy+view.oy};}
+function roomBox(){
+  var xs=[],ys=[],i,j,k;
+  for(i=0;i<2;i++)for(j=0;j<2;j++)for(k=0;k<2;k++){
+    var q=rawProj(i?L.W:0,j?totalD():0,k?L.H:0); xs.push(q.sx); ys.push(q.sy);}
+  return {x0:Math.min.apply(null,xs),x1:Math.max.apply(null,xs),
+          y0:Math.min.apply(null,ys),y1:Math.max.apply(null,ys)};
+}
+function center(){var b=roomBox();view.cx=380-(b.x0+b.x1)/2;view.cy=300-(b.y0+b.y1)/2;}
+function fitView(){
+  view.ox=0;view.oy=0;
+  var vp=document.getElementById('vpan'); if(vp) vp.value=0;
+  var b=roomBox();
+  view.S=cl(view.S*Math.min(690/(b.x1-b.x0),500/(b.y1-b.y0)),20,140);
+  center();
+}
+function depth(x,y){var t=view.yaw*Math.PI/180;
+  return -(x-L.W/2)*Math.sin(t)+(y-totalD()/2)*Math.cos(t);}
+function shade(hex,f){
+  var n=parseInt(hex.slice(1),16);
+  var r=Math.min(255,Math.round(((n>>16)&255)*f));
+  var g=Math.min(255,Math.round(((n>>8)&255)*f));
+  var b=Math.min(255,Math.round((n&255)*f));
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function place(it,p){
+  var W=it.w,D=it.d,r=((it.rot%360)+360)%360;
+  if(r===0)   return {x:it.x+p.x,y:it.y+p.y,w:p.w,d:p.d};
+  if(r===90)  return {x:it.x+(D-p.y-p.d),y:it.y+p.x,w:p.d,d:p.w};
+  if(r===180) return {x:it.x+(W-p.x-p.w),y:it.y+(D-p.y-p.d),w:p.w,d:p.d};
+  return             {x:it.x+p.y,y:it.y+(W-p.x-p.w),w:p.d,d:p.w};
+}
+function foot(it){var r=((it.rot%360)+360)%360;return (r===90||r===270)?{w:it.d,d:it.w}:{w:it.w,d:it.d};}
+
+/* ============ render ============ */
+function poly(pts,fill,stroke,op,attr,sw){
+  var e=document.createElementNS(NS,'polygon');
+  e.setAttribute('points',pts.map(function(q){return q.sx.toFixed(1)+','+q.sy.toFixed(1);}).join(' '));
+  e.setAttribute('fill',fill);e.setAttribute('stroke',stroke);
+  e.setAttribute('stroke-width',sw||0.7);e.setAttribute('stroke-linejoin','round');
+  if(op!==undefined&&op!==1) e.setAttribute('fill-opacity',op);
+  if(attr){e.setAttribute('data-id',attr);e.style.cursor='move';}
+  return e;
+}
+function pushBox(bag,b,id,hl){
+  var x=b.x,y=b.y,z=b.z||0,w=b.w,d=b.d,h=b.h,c=b.c,o=(b.o===undefined?1:b.o);
+  var f=[
+    {p:[proj(x,y,z+h),proj(x+w,y,z+h),proj(x+w,y+d,z+h),proj(x,y+d,z+h)],k:1.00,top:1},
+    {p:[proj(x+w,y,z),proj(x+w,y+d,z),proj(x+w,y+d,z+h),proj(x+w,y,z+h)],k:0.86},
+    {p:[proj(x,y,z),proj(x,y+d,z),proj(x,y+d,z+h),proj(x,y,z+h)],k:0.72},
+    {p:[proj(x,y+d,z),proj(x+w,y+d,z),proj(x+w,y+d,z+h),proj(x,y+d,z+h)],k:0.66},
+    {p:[proj(x,y,z),proj(x+w,y,z),proj(x+w,y,z+h),proj(x,y,z+h)],k:0.80}];
+  var out=[];
+  f.forEach(function(fc){
+    if(fc.top){if(h>0.02)out.push(fc);return;}
+    var a=0;for(var i=0;i<4;i++){var q=fc.p[i],r=fc.p[(i+1)%4];a+=q.sx*r.sy-r.sx*q.sy;}
+    if(a<0) out.push(fc);});
+  out.sort(function(a,b){return (a.top?1:0)-(b.top?1:0);});
+  out.forEach(function(fc){
+    bag.push({v:depth(x+w/2,y+d/2),z:z,
+      el:poly(fc.p,shade(c,fc.k),hl?'#2E4864':shade(c,fc.k*0.85),o,id,hl?1.8:0.7)});});
+}
+function drawLeader(){
+  if(!selRoom) return;
+  var card=document.getElementById('roomCard');
+  if(!card || card.style.display==='none') return;
+  var m=svg.getScreenCTM(); if(!m) return;
+  var cr=card.getBoundingClientRect();
+  var pt=svg.createSVGPoint(); pt.x=cr.right; pt.y=cr.top+cr.height/2;
+  var a=pt.matrixTransform(m.inverse());
+  var R=roomById(selRoom), r=R.rect();
+  var b=proj(r.x+r.w/2,r.y+r.d/2,0.02);
+  var midx=a.x+(b.sx-a.x)*0.45;
+  var pl=document.createElementNS(NS,'polyline');
+  pl.setAttribute('points',a.x.toFixed(1)+','+a.y.toFixed(1)+' '+
+                  midx.toFixed(1)+','+a.y.toFixed(1)+' '+
+                  b.sx.toFixed(1)+','+(b.sy-12).toFixed(1));
+  pl.setAttribute('fill','none');pl.setAttribute('stroke','#2E4864');
+  pl.setAttribute('stroke-width','1.4');pl.setAttribute('stroke-linejoin','round');
+  pl.setAttribute('stroke-opacity','0.55');
+  pl.setAttribute('pointer-events','none');
+  svg.appendChild(pl);
+  var dot=document.createElementNS(NS,'circle');
+  dot.setAttribute('cx',a.x.toFixed(1));dot.setAttribute('cy',a.y.toFixed(1));
+  dot.setAttribute('r','3');dot.setAttribute('fill','#2E4864');
+  dot.setAttribute('pointer-events','none');
+  svg.appendChild(dot);
+}
+function render(){
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  floors().forEach(function(f){
+    svg.appendChild(poly([proj(f.x,f.y,0),proj(f.x+f.w,f.y,0),proj(f.x+f.w,f.y+f.d,0),proj(f.x,f.y+f.d,0)],
+      f.c,shade(f.c,0.93),1));});
+  if(selRoom){
+    var rr=roomById(selRoom).rect();
+    svg.appendChild(poly([proj(rr.x,rr.y,0.006),proj(rr.x+rr.w,rr.y,0.006),
+      proj(rr.x+rr.w,rr.y+rr.d,0.006),proj(rr.x,rr.y+rr.d,0.006)],'#2E4864','#2E4864',0.16,null,1.4));
+  }
+  if(view.grid){
+    var g=document.createElementNS(NS,'g');
+    g.setAttribute('stroke','#000');g.setAttribute('stroke-opacity','0.055');g.setAttribute('stroke-width','0.6');
+    var i,a,b,l;
+    for(i=0;i<=L.W+0.001;i+=0.5){a=proj(i,0,0);b=proj(i,totalD(),0);
+      l=document.createElementNS(NS,'line');l.setAttribute('x1',a.sx);l.setAttribute('y1',a.sy);
+      l.setAttribute('x2',b.sx);l.setAttribute('y2',b.sy);g.appendChild(l);}
+    for(i=0;i<=totalD()+0.001;i+=0.5){a=proj(0,i,0);b=proj(L.W,i,0);
+      l=document.createElementNS(NS,'line');l.setAttribute('x1',a.sx);l.setAttribute('y1',a.sy);
+      l.setAttribute('x2',b.sx);l.setAttribute('y2',b.sy);g.appendChild(l);}
+    svg.appendChild(g);}
+  var bag=[];
+  if(view.walls) walls().forEach(function(w){
+    if(depth(w.x+w.w/2,w.y+w.d/2)>0.05) return; pushBox(bag,w);});
+  builtin().forEach(function(b){pushBox(bag,b);});
+  glass().forEach(function(b){pushBox(bag,b);});
+  items.forEach(function(it){
+    if(it.hidden) return;
+    it.parts.forEach(function(p){
+      var w=place(it,p);
+      pushBox(bag,{x:w.x,y:w.y,z:p.z||0,w:w.w,d:w.d,h:p.h,c:p.c},it.id,sel===it.id);});});
+  bag.forEach(function(b,i){b.i=i;});
+  bag.sort(function(a,b){return (a.v-b.v)||(a.z-b.z)||(a.i-b.i);});
+  bag.forEach(function(b){svg.appendChild(b.el);});
+
+  if(view.labels) ROOMS.forEach(function(R){
+    var r=R.rect(); if(r.w<0.3||r.d<0.3) return;
+    var p=proj(r.x+r.w/2,r.y+r.d/2,0.02);
+    var txt=R.name, on=(selRoom===R.id), wpx=txt.length*6.6+16;
+    var g=document.createElementNS(NS,'g'); g.style.cursor='pointer';
+    var bg=document.createElementNS(NS,'rect');
+    bg.setAttribute('x',p.sx-wpx/2);bg.setAttribute('y',p.sy-10);
+    bg.setAttribute('width',wpx);bg.setAttribute('height',20);bg.setAttribute('rx',10);
+    bg.setAttribute('fill',on?'#2E4864':'#FFFDF8');
+    bg.setAttribute('fill-opacity',on?0.95:0.7);
+    bg.setAttribute('stroke',on?'#2E4864':'#D8CFBE');
+    bg.setAttribute('data-room',R.id); g.appendChild(bg);
+    var t1=document.createElementNS(NS,'text');
+    t1.setAttribute('x',p.sx);t1.setAttribute('y',p.sy+4);t1.setAttribute('text-anchor','middle');
+    t1.setAttribute('font-size','10.5');t1.setAttribute('font-weight','500');
+    t1.setAttribute('fill',on?'#FFFDF8':'#5F5648');
+    t1.setAttribute('font-family',"'Noto Sans Thai',sans-serif");
+    t1.setAttribute('data-room',R.id); t1.textContent=txt; g.appendChild(t1);
+    svg.appendChild(g);
+  });
+  drawLeader();
+  document.getElementById('readout').textContent=Math.round(view.yaw)+'° / '+Math.round(view.pitch)+'°';
+}
+
+/* ============ layout editing ============ */
+function afterLayout(){
+  clampLayout();
+  items.forEach(clampItem);
+  center(); syncRoom(); syncUnit(); buildRoomList(); render();
+}
+function syncRoom(){
+  var box=document.getElementById('roomBox'), wrap=document.getElementById('roomDims');
+  var card=document.getElementById('roomCard');
+  if(!selRoom){box.textContent='คลิกที่ป้ายชื่อห้องในภาพ';wrap.style.display='none';
+               card.style.display='none';return;}
+  var R=roomById(selRoom), r=R.rect();
+  var line=(r.w*100).toFixed(0)+' × '+(r.d*100).toFixed(0)+' ซม. · '+(r.w*r.d).toFixed(2)+' ตร.ม.';
+  box.innerHTML='<b>'+R.name+'</b><br><span class="dim">'+line+'</span>';
+  wrap.style.display='block';
+  card.style.display='block';
+  document.getElementById('rcName').textContent=R.name;
+  document.getElementById('rcSub').textContent=line;
+  if(document.activeElement.id!=='rW') document.getElementById('rW').value=Math.round(r.w*100);
+  if(document.activeElement.id!=='rD') document.getElementById('rD').value=Math.round(r.d*100);
+  if(document.activeElement.id!=='cW') document.getElementById('cW').value=Math.round(r.w*100);
+  if(document.activeElement.id!=='cD') document.getElementById('cD').value=Math.round(r.d*100);
+}
+function syncUnit(){
+  if(document.activeElement.id!=='uW') document.getElementById('uW').value=Math.round(L.W*100);
+  if(document.activeElement.id!=='uD') document.getElementById('uD').value=Math.round(L.D*100);
+  document.getElementById('area').textContent=(L.W*L.D).toFixed(1);
+  document.getElementById('tot').textContent=Math.round(totalD()*100);
+}
+function buildRoomList(){
+  var box=document.getElementById('roomList'); box.innerHTML='';
+  ROOMS.forEach(function(R){
+    var r=R.rect(), row=document.createElement('div');
+    row.style.cssText='padding:3px 0;cursor:pointer';
+    row.innerHTML=R.name+' <span style="opacity:.6">· '+Math.round(r.w*100)+'×'+Math.round(r.d*100)+
+                  ' ('+(r.w*r.d).toFixed(1)+' ตร.ม.)</span>';
+    row.addEventListener('click',function(){selRoom=R.id;sel=null;updateSel();syncRoom();render();});
+    box.appendChild(row);});
+}
+['rW','rD','cW','cD'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){
+    if(!selRoom) return; var v=parseFloat(this.value); if(!(v>=30)) return;
+    var R=roomById(selRoom);
+    if(id==='rW'||id==='cW') R.setW(v/100); else R.setD(v/100);
+    afterLayout();});
+});
+document.getElementById('roomClose').addEventListener('click',function(){
+  selRoom=null; syncRoom(); render();});
+['uW','uD'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){
+    var v=parseFloat(this.value); if(!(v>=250)) return;
+    if(id==='uW') L.W=v/100; else L.D=v/100;
+    afterLayout();});
+});
+
+/* ============ interaction ============ */
+function svgPt(e){var p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;
+  return p.matrixTransform(svg.getScreenCTM().inverse());}
+function toPlan(dx,dy){
+  var t=view.yaw*Math.PI/180,p=view.pitch*Math.PI/180;
+  var du=dx/view.S,dv=dy/(Math.sin(p)*view.S);
+  return {x:du*Math.cos(t)-dv*Math.sin(t),y:du*Math.sin(t)+dv*Math.cos(t)};}
+function clampItem(it){var f=foot(it);
+  it.x=cl(it.x,-0.05,Math.max(-0.05,L.W-f.w+0.05));
+  it.y=cl(it.y,-0.05,Math.max(-0.05,totalD()-f.d+0.05));}
+function byId(id){for(var i=0;i<items.length;i++) if(items[i].id===id) return items[i];return null;}
+
+svg.addEventListener('pointerdown',function(e){
+  var rid=e.target.getAttribute&&e.target.getAttribute('data-room');
+  if(rid){ selRoom=rid; sel=null; updateSel(); syncRoom(); render(); return; }
+  var id=e.target.getAttribute&&e.target.getAttribute('data-id');
+  svg.setPointerCapture(e.pointerId);
+  if(!id){
+    sel=null; selRoom=null; updateSel(); syncRoom();
+    if(e.shiftKey||e.button===1){
+      pan={cx:e.clientX,cy:e.clientY,px:view.ox,py:view.oy,k:760/svg.getBoundingClientRect().width};
+    }else{
+      orbit={cx:e.clientX,cy:e.clientY,yaw:view.yaw,pitch:view.pitch};
+    }
+    svg.classList.add('grabbing'); render(); return;
+  }
+  sel=id; selRoom=null; syncRoom();
+  var it=byId(id), p=svgPt(e);
+  drag={id:id,px:p.x,py:p.y,ox:it.x,oy:it.y};
+  svg.classList.add('grabbing'); updateSel(); render();
+});
+svg.addEventListener('pointermove',function(e){
+  if(pan){
+    view.ox=pan.px+(e.clientX-pan.cx)*pan.k;
+    view.oy=pan.py+(e.clientY-pan.cy)*pan.k;
+    syncVpan(); render(); return;}
+  if(orbit){
+    setYaw(orbit.yaw+(e.clientX-orbit.cx)*0.45);
+    setPitch(orbit.pitch-(e.clientY-orbit.cy)*0.30);
+    syncView(); render(); return;}
+  if(!drag) return;
+  var p=svgPt(e),it=byId(drag.id),d=toPlan(p.x-drag.px,p.y-drag.py);
+  it.x=Math.round((drag.ox+d.x)/0.05)*0.05;
+  it.y=Math.round((drag.oy+d.y)/0.05)*0.05;
+  clampItem(it); render(); updateSel();
+});
+function endPtr(){drag=null;orbit=null;pan=null;svg.classList.remove('grabbing');}
+svg.addEventListener('pointerup',endPtr);
+svg.addEventListener('pointercancel',endPtr);
+svg.addEventListener('wheel',function(e){
+  e.preventDefault(); setZoom(view.S*(e.deltaY<0?1.08:1/1.08)); syncView(); render();
+},{passive:false});
+
+function setYaw(v){view.yaw=((v%360)+360)%360;center();}
+function setPitch(v){view.pitch=cl(v,10,80);center();}
+function setZoom(v){view.S=cl(v,20,140);center();}
+function syncView(){
+  document.getElementById('yaw').value=Math.round(view.yaw);
+  document.getElementById('vYaw').textContent=Math.round(view.yaw)+'°';
+  document.getElementById('pitch').value=Math.round(view.pitch);
+  document.getElementById('vPitch').textContent=Math.round(view.pitch)+'°';
+  document.getElementById('zoom').value=Math.round(view.S);
+  document.getElementById('vZoom').textContent=Math.round(view.S);
+}
+function syncVpan(){document.getElementById('vpan').value=cl(-view.oy,-340,340);}
+
+(function(){
+  var timer=null;
+  function act(a){
+    if(a==='left') setYaw(view.yaw-4);
+    else if(a==='right') setYaw(view.yaw+4);
+    else if(a==='up') setPitch(view.pitch+2);
+    else if(a==='down') setPitch(view.pitch-2);
+    else if(a==='zin') setZoom(view.S*1.06);
+    else if(a==='zout') setZoom(view.S/1.06);
+    else if(a==='home'){view.yaw=45;view.pitch=35;view.S=58;fitView();}
+    else if(a==='fit') fitView();
+    syncView(); render();
+  }
+  document.querySelectorAll('.orbit button').forEach(function(b){
+    var a=b.dataset.act;
+    b.addEventListener('pointerdown',function(e){
+      e.preventDefault(); act(a);
+      if(a==='home'||a==='fit') return;
+      clearInterval(timer); timer=setInterval(function(){act(a);},60);});});
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+    document.addEventListener(ev,function(){clearInterval(timer);});});
+})();
+
+document.addEventListener('keydown',function(e){
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if(!sel) return;
+  var it=byId(sel); if(!it) return;
+  var step=e.shiftKey?0.01:0.05,act=true;
+  if(e.key==='ArrowLeft') it.x-=step;
+  else if(e.key==='ArrowRight') it.x+=step;
+  else if(e.key==='ArrowUp') it.y-=step;
+  else if(e.key==='ArrowDown') it.y+=step;
+  else if(e.key==='r'||e.key==='R') it.rot=(it.rot+90)%360;
+  else if(e.key==='Delete'||e.key==='Backspace') return removeSel(e);
+  else act=false;
+  if(act){e.preventDefault();it.x=Math.round(it.x*100)/100;it.y=Math.round(it.y*100)/100;
+          clampItem(it);render();updateSel();}
+});
+function removeSel(e){
+  if(e) e.preventDefault();
+  items=items.filter(function(i){return i.id!==sel;});
+  sel=null; updateSel(); render(); buildList(); buildAddList();
+}
+
+/* ============ panel: เฟอร์นิเจอร์ ============ */
+function updateSel(){
+  var box=document.getElementById('selBox'),wrap=document.getElementById('dimWrap');
+  var rl=document.getElementById('rotL'),rr=document.getElementById('rotR'),dl=document.getElementById('del');
+  var it=sel?byId(sel):null;
+  if(!it){box.textContent='ยังไม่ได้เลือก — คลิกที่เฟอร์นิเจอร์ในภาพ';
+          wrap.style.display='none';rl.disabled=rr.disabled=dl.disabled=true;return;}
+  var f=foot(it);
+  box.innerHTML='<b><span class="swatch" style="background:'+it.c+'"></span>'+it.name+'</b><br>'+
+    '<span class="dim">หมุน '+(((it.rot%360)+360)%360)+'° · ตำแหน่ง X '+(it.x*100).toFixed(0)+
+    ' ซม. / Y '+(it.y*100).toFixed(0)+' ซม.<br>กินพื้นที่จริง '+(f.w*100).toFixed(0)+' × '+(f.d*100).toFixed(0)+' ซม.</span>';
+  wrap.style.display='block';
+  if(document.activeElement.id!=='dW') document.getElementById('dW').value=Math.round(it.w*100);
+  if(document.activeElement.id!=='dD') document.getElementById('dD').value=Math.round(it.d*100);
+  if(document.activeElement.id!=='dH') document.getElementById('dH').value=Math.round(it.h*100);
+  rl.disabled=rr.disabled=dl.disabled=false;
+}
+['dW','dD','dH'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){
+    var it=sel?byId(sel):null; if(!it) return;
+    var v=parseFloat(this.value); if(!(v>0)) return;
+    v=cl(v,1,600)/100;
+    if(id==='dW') it.w=v; else if(id==='dD') it.d=v; else it.h=v;
+    rescale(it); clampItem(it); render(); updateSel(); buildList();});
+});
+document.getElementById('rotL').addEventListener('click',function(){
+  var it=byId(sel);it.rot=(it.rot+270)%360;clampItem(it);render();updateSel();});
+document.getElementById('rotR').addEventListener('click',function(){
+  var it=byId(sel);it.rot=(it.rot+90)%360;clampItem(it);render();updateSel();});
+document.getElementById('del').addEventListener('click',function(){removeSel();});
+
+function buildAddList(){
+  var s=document.getElementById('addSel');s.innerHTML='';
+  CATALOG.forEach(function(c){
+    var o=document.createElement('option');o.value=c.id;
+    o.textContent=c.name+(byId(c.id)?' (เพิ่มอีกชิ้น)':'');s.appendChild(o);});
+}
+document.getElementById('addBtn').addEventListener('click',function(){
+  var id=document.getElementById('addSel').value;
+  var src=CATALOG.filter(function(c){return c.id===id;})[0];
+  var it=prep(src);
+  if(byId(id)){it.id=id+'_'+(++uid);it.name=src.name+' #'+(uid+1);it.x+=0.25;it.y+=0.25;}
+  clampItem(it);items.push(it);sel=it.id;selRoom=null;
+  render();updateSel();syncRoom();buildList();buildAddList();});
+function buildList(){
+  var box=document.getElementById('list');box.innerHTML='';
+  items.forEach(function(it){
+    var row=document.createElement('div');
+    row.className='frow'+(it.hidden?' off':'');
+    var eye=document.createElement('button');
+    eye.className='eye'; eye.textContent=it.hidden?'✕':'👁';
+    eye.title=it.hidden?'แสดงชิ้นนี้':'ซ่อนชิ้นนี้';
+    eye.addEventListener('click',function(ev){
+      ev.stopPropagation(); it.hidden=!it.hidden;
+      if(it.hidden&&sel===it.id){sel=null;updateSel();}
+      render(); buildList();});
+    var nm=document.createElement('span');
+    nm.className='nm';
+    nm.innerHTML='<span class="swatch" style="background:'+it.c+'"></span>'+it.name+
+      ' <span style="opacity:.6">· '+Math.round(it.w*100)+'×'+Math.round(it.d*100)+'×'+Math.round(it.h*100)+'</span>';
+    nm.addEventListener('click',function(){
+      if(it.hidden) return;
+      sel=it.id;selRoom=null;updateSel();syncRoom();render();});
+    row.appendChild(eye); row.appendChild(nm); box.appendChild(row);});
+}
+document.getElementById('showAll').addEventListener('click',function(){
+  items.forEach(function(i){i.hidden=false;});render();buildList();});
+document.getElementById('hideAll').addEventListener('click',function(){
+  items.forEach(function(i){i.hidden=true;});sel=null;updateSel();render();buildList();});
+
+document.getElementById('vpan').addEventListener('input',function(){view.oy=-(+this.value);render();});
+document.getElementById('yaw').addEventListener('input',function(){setYaw(+this.value);syncView();render();});
+document.getElementById('pitch').addEventListener('input',function(){setPitch(+this.value);syncView();render();});
+document.getElementById('zoom').addEventListener('input',function(){setZoom(+this.value);syncView();render();});
+document.querySelectorAll('[data-yaw]').forEach(function(b){
+  b.addEventListener('click',function(){setYaw(+b.dataset.yaw);syncView();render();});});
+document.getElementById('topview').addEventListener('click',function(){setPitch(80);syncView();render();});
+function toggle(id,key,label){
+  document.getElementById(id).addEventListener('click',function(){
+    view[key]=!view[key];this.textContent=label+': '+(view[key]?'เปิด':'ปิด');render();});}
+toggle('tWalls','walls','ผนัง');toggle('tGrid','grid','ตาราง');toggle('tLabel','labels','ป้ายห้อง');
+document.getElementById('reset').addEventListener('click',function(){
+  L=Object.assign({},L0);
+  items=CATALOG.filter(function(c){return !c.extra;}).map(prep);
+  sel=null;selRoom=null;uid=0;
+  fitView();syncView();updateSel();syncRoom();syncUnit();buildRoomList();buildList();buildAddList();render();});
+
+/* ============ บันทึกแบบ (หลายชุด มีชื่อ) ============ */
+
+/* ┌─────────────────────────────────────────────────────────────┐
+   │  ตั้งค่า Firebase — วาง databaseURL ของโปรเจ็กต์ใหม่ตรงนี้     │
+   │  เว้นว่างไว้ = เก็บในเบราว์เซอร์เครื่องนี้อย่างเดียว            │
+   └─────────────────────────────────────────────────────────────┘ */
+var FB = {
+  databaseURL: "",          /* เช่น "https://condo-planner-xxxx-default-rtdb.asia-southeast1.firebasedatabase.app" */
+  path: "plans"
+};
+
+var CLOUD = FB.databaseURL ? FB.databaseURL.replace(/\/+$/,'')+'/'+FB.path : null;
+var cloudOK = null;
+var STORE='condoPlanner.saves.v1', memStore=null, canPersist=true;
+
+function loadSaves(cb){
+  if(!CLOUD){ cb(readAll()); return; }
+  fetch(CLOUD+'.json',{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(j){ cloudOK=true; noteStore(); cb(j||{}); })
+    .catch(function(){ cloudOK=false; noteStore(); cb(readAll()); });
+}
+function putSave(key,obj,cb){
+  if(!CLOUD){ var a=readAll(); a[key]=obj; writeAll(a); cb(true,false); return; }
+  fetch(CLOUD+'/'+key+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(obj)})
+    .then(function(r){ if(!r.ok) throw 0; cloudOK=true; noteStore(); cb(true,true); })
+    .catch(function(){ cloudOK=false; noteStore();
+      var a=readAll(); a[key]=obj; writeAll(a); cb(true,false); });
+}
+function delSave(key,cb){
+  if(!CLOUD){ var a=readAll(); delete a[key]; writeAll(a); cb(true); return; }
+  fetch(CLOUD+'/'+key+'.json',{method:'DELETE'})
+    .then(function(r){ if(!r.ok) throw 0; cloudOK=true; noteStore(); cb(true); })
+    .catch(function(){ cloudOK=false; noteStore(); cb(false); });
+}
+function readAll(){
+  try{ var raw=localStorage.getItem(STORE); return raw?JSON.parse(raw):{}; }
+  catch(e){ canPersist=false; return memStore||{}; }
+}
+function writeAll(o){
+  memStore=o;
+  try{ localStorage.setItem(STORE,JSON.stringify(o)); canPersist=true; }
+  catch(e){ canPersist=false; }
+  noteStore();
+}
+function noteStore(){
+  var n=document.getElementById('storeNote'); if(!n) return;
+  if(CLOUD && cloudOK===true)
+    n.innerHTML='<b style="color:#3E6B52">● เชื่อมคลาวด์แล้ว</b> — เปิดจากเครื่องไหนก็เห็นรายการเดียวกัน';
+  else if(CLOUD && cloudOK===false)
+    n.innerHTML='<b style="color:#A4553F">● ต่อคลาวด์ไม่ได้</b> — ใช้ข้อมูลในเครื่องนี้ชั่วคราว ลองกด "รีเฟรช"';
+  else if(CLOUD)
+    n.textContent='กำลังเชื่อมคลาวด์…';
+  else if(canPersist)
+    n.textContent='ยังไม่ได้ตั้งค่า Firebase — เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น';
+  else
+    n.textContent='เบราว์เซอร์นี้เก็บถาวรไม่ได้ ค่าจะอยู่จนกว่าจะปิดหน้า — แนะนำให้กด "ดาวน์โหลดไฟล์"';
+}
+function snapshot(name){
+  return {name:name, at:Date.now(), layout:Object.assign({},L),
+    view:{yaw:view.yaw,pitch:view.pitch,S:view.S},
+    items:items.map(function(i){
+      return {id:i.id,name:i.name,x:+i.x.toFixed(2),y:+i.y.toFixed(2),rot:i.rot,
+              w:+i.w.toFixed(2),d:+i.d.toFixed(2),h:+i.h.toFixed(2),hidden:!!i.hidden};})};
+}
+function applyData(data){
+  if(!data||!data.items) throw new Error('bad');
+  if(data.layout) L=Object.assign({},L0,data.layout);
+  items=[]; uid=0;
+  data.items.forEach(function(s){
+    var base=String(s.id).split('_')[0];
+    var src=CATALOG.filter(function(c){return c.id===base;})[0];
+    if(!src) return;
+    var it=prep(src); it.id=s.id; if(s.name) it.name=s.name;
+    it.x=s.x; it.y=s.y; it.rot=s.rot||0; it.hidden=!!s.hidden;
+    if(s.w){it.w=s.w;it.d=s.d;it.h=s.h;rescale(it);}
+    var m=/_(\d+)$/.exec(String(s.id)); if(m) uid=Math.max(uid,+m[1]);
+    items.push(it);
+  });
+  if(data.view){view.yaw=data.view.yaw;view.pitch=data.view.pitch;view.S=data.view.S;}
+  sel=null; selRoom=null;
+  clampLayout(); items.forEach(clampItem);
+  fitView(); syncView(); syncUnit(); syncRoom();
+  buildRoomList(); buildList(); buildAddList(); updateSel(); render();
+}
+function fmtDate(ts){
+  var d=new Date(ts), p=function(n){return n<10?'0'+n:''+n;};
+  return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+var savesCache={};
+function buildSaveList(){
+  var box=document.getElementById('saveList');
+  box.innerHTML='<div class="empty">กำลังโหลด…</div>';
+  loadSaves(function(all){
+    savesCache=all||{};
+    box.innerHTML='';
+    var keys=Object.keys(savesCache).sort(function(a,b){
+      return (savesCache[b].at||0)-(savesCache[a].at||0);});
+    if(!keys.length){box.innerHTML='<div class="empty">ยังไม่มีแบบที่บันทึกไว้</div>';return;}
+    keys.forEach(function(k){
+      var s=savesCache[k]; if(!s||!s.name) return;
+      var row=document.createElement('div'); row.className='srow';
+      var info=document.createElement('div'); info.className='info';
+      info.innerHTML='<b>'+s.name+'</b><span>'+fmtDate(s.at)+' · '+
+        (s.items?s.items.length:0)+' ชิ้น · '+Math.round((s.layout&&s.layout.W||0)*100)+'×'+
+        Math.round((s.layout&&s.layout.D||0)*100)+'</span>';
+      info.addEventListener('click',function(){
+        try{ applyData(s); document.getElementById('saveName').value=s.name; }
+        catch(err){ alert('เปิดแบบนี้ไม่ได้'); }});
+      var kill=document.createElement('button'); kill.className='kill'; kill.textContent='✕';
+      kill.title='ลบแบบนี้';
+      kill.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        if(!confirm('ลบแบบ "'+s.name+'" ?')) return;
+        delSave(k,function(ok){ if(!ok) alert('ลบบนคลาวด์ไม่สำเร็จ'); buildSaveList(); });});
+      row.appendChild(info); row.appendChild(kill); box.appendChild(row);
+    });
+  });
+}
+document.getElementById('saveBtn').addEventListener('click',function(){
+  var el=document.getElementById('saveName'), name=(el.value||'').trim();
+  if(!name){ alert('ใส่ชื่อการจัดก่อนครับ'); el.focus(); return; }
+  var key=Object.keys(savesCache).filter(function(k){
+    return savesCache[k] && savesCache[k].name===name;})[0];
+  if(key && !confirm('มีแบบชื่อ "'+name+'" อยู่แล้ว บันทึกทับไหม')) return;
+  putSave(key||('s'+Date.now()), snapshot(name), function(ok,onCloud){
+    if(CLOUD && !onCloud) alert('บันทึกขึ้นคลาวด์ไม่สำเร็จ เก็บไว้ในเครื่องนี้แทน');
+    buildSaveList();
+  });
+});
+document.getElementById('refreshBtn').addEventListener('click',function(){buildSaveList();});
+document.getElementById('saveName').addEventListener('keydown',function(e){
+  if(e.key==='Enter') document.getElementById('saveBtn').click();});
+document.getElementById('dlBtn').addEventListener('click',function(){
+  var name=(document.getElementById('saveName').value||'condo-plan').trim();
+  var blob=new Blob([JSON.stringify(snapshot(name),null,1)],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name.replace(/[\\/:*?"<>|]/g,'_')+'.json';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
+});
+document.getElementById('upBtn').addEventListener('click',function(){
+  document.getElementById('upFile').click();});
+document.getElementById('upFile').addEventListener('change',function(){
+  var f=this.files&&this.files[0]; if(!f) return;
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var data=JSON.parse(r.result);
+      applyData(data);
+      if(data.name) document.getElementById('saveName').value=data.name;
+    }catch(err){ alert('ไฟล์ไม่ถูกต้อง'); }
+  };
+  r.readAsText(f); this.value='';
+});
+
+clampLayout();buildList();buildAddList();buildRoomList();
+fitView();syncView();syncUnit();syncRoom();render();updateSel();
+readAll();noteStore();buildSaveList();
+})();
+</script>
+</body>
+</html>
